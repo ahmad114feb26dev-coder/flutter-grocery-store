@@ -6,11 +6,13 @@ class SecureStorageService {
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userKey = 'user_data';
+  static const String _serverUrlKey = 'custom_server_url';
 
   // In-memory cache for instant synchronous access and Web race-condition protection
   static String? _cachedAccessToken;
   static String? _cachedRefreshToken;
   static String? _cachedUserData;
+  static String? _cachedServerUrl;
 
   Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
     _cachedAccessToken = accessToken;
@@ -74,5 +76,22 @@ class SecureStorageService {
       await _storage.delete(key: _refreshTokenKey);
       await _storage.delete(key: _userKey);
     } catch (_) {}
+  }
+
+  Future<void> saveServerUrl(String url) async {
+    _cachedServerUrl = url;
+    try {
+      await _storage.write(key: _serverUrlKey, value: url);
+    } catch (_) {}
+  }
+
+  Future<String?> getServerUrl() async {
+    if (_cachedServerUrl != null && _cachedServerUrl!.isNotEmpty) {
+      return _cachedServerUrl;
+    }
+    try {
+      _cachedServerUrl = await _storage.read(key: _serverUrlKey);
+    } catch (_) {}
+    return _cachedServerUrl;
   }
 }

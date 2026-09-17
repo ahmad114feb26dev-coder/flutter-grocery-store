@@ -13,8 +13,8 @@ class DioClient {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
+        connectTimeout: const Duration(seconds: 25),
+        receiveTimeout: const Duration(seconds: 25),
         responseType: ResponseType.json,
       ),
     );
@@ -32,8 +32,9 @@ class DioClient {
       if (data is Map<String, dynamic> && data.containsKey('message')) {
         return ApiException(data['message'], statusCode: err.response?.statusCode);
       }
-      return ApiException('An error occurred. Please try again.', statusCode: err.response?.statusCode);
+      return ApiException('Server error (${err.response?.statusCode}). Please try again.', statusCode: err.response?.statusCode);
     }
-    return ApiException('Network error. Please check your connection.');
+    final msg = err.message ?? err.error?.toString() ?? 'Network connection failed';
+    return ApiException(msg);
   }
 }

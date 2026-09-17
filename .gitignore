@@ -20,6 +20,8 @@ mongod.log
 *.zip
 *.tar.gz
 *.rar
+*.apk
+*.aab
 
 # Flutter / Dart
 **/.dart_tool/
