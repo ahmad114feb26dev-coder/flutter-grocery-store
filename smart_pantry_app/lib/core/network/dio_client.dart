@@ -34,7 +34,8 @@ class DioClient {
       }
       return ApiException('Server error (${err.response?.statusCode}). Please try again.', statusCode: err.response?.statusCode);
     }
-    final msg = err.message ?? err.error?.toString() ?? 'Network connection failed';
-    return ApiException(msg);
+    final uri = err.requestOptions.uri;
+    final errorDetail = err.error?.toString() ?? err.message ?? 'No response';
+    return ApiException('Connection failed: [$uri] -> ${err.type.name}: $errorDetail');
   }
 }

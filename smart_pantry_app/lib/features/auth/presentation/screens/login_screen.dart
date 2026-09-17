@@ -181,8 +181,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login failed: ${e.toString().replaceAll("Exception:", "").trim()}'),
+            content: Text(
+              'Login failed: ${e.toString().replaceAll("Exception:", "").trim()}',
+              style: const TextStyle(fontSize: 13),
+            ),
             backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: 'Settings',
+              textColor: Colors.white,
+              onPressed: _showServerConfigDialog,
+            ),
           ),
         );
       }
