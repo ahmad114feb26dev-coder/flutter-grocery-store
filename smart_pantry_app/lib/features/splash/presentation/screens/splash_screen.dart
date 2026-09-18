@@ -31,13 +31,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     });
   }
 
-  void _proceedToNextScreen() {
-    final authState = ref.read(authControllerProvider);
-    final user = authState.valueOrNull;
-
-    if (user != null) {
-      context.go('/dashboard');
-    } else {
+  void _proceedToNextScreen() async {
+    if (!mounted) return;
+    try {
+      final user = await ref.read(authControllerProvider.future);
+      if (!mounted) return;
+      if (user != null) {
+        context.go('/dashboard');
+      } else {
+        context.go('/login');
+      }
+    } catch (_) {
+      if (!mounted) return;
       context.go('/login');
     }
   }

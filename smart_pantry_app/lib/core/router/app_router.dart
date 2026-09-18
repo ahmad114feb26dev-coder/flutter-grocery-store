@@ -22,7 +22,7 @@ class RouterNotifier extends ChangeNotifier {
 
   String? redirect(BuildContext context, GoRouterState state) {
     // Do not redirect while on the splash screen so splash animations can play smoothly
-    if (state.matchedLocation == '/splash') {
+    if (state.matchedLocation == '/' || state.matchedLocation == '/splash') {
       return null;
     }
 
@@ -58,10 +58,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(routerNotifierProvider);
 
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: '/',
     refreshListenable: notifier,
     redirect: notifier.redirect,
     routes: [
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(
         path: '/splash',
         builder: (context, state) => const SplashScreen(),
