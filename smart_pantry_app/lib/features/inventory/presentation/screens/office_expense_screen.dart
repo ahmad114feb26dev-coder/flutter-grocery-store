@@ -150,6 +150,23 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
               }
             }
 
+            final activeItemsList = isArchiveMode ? archiveItems : items;
+            final todayDay = DateTime.now().day.toString();
+            int todayProductsUsedCount = 0;
+            double todayTotalUnitsUsed = 0.0;
+            int userTodayLoggedCount = 0;
+
+            for (final item in activeItemsList) {
+              final usedToday = item.dailyUsageLogs?[todayDay] ?? 0.0;
+              if (usedToday > 0) {
+                todayProductsUsedCount++;
+                todayTotalUnitsUsed += usedToday;
+              }
+              if (currentUser != null && item.hasStaffLoggedForDay(todayDay, currentUser.id, currentUser.email)) {
+                userTodayLoggedCount++;
+              }
+            }
+
             final isWideScreen = MediaQuery.of(context).size.width >= 800;
             final isNarrow = MediaQuery.of(context).size.width < 500;
 
@@ -177,6 +194,15 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
                     const SizedBox(height: 14),
 
                     if (_activeTab == 0) ...[
+                      // Today's Consumption Banner
+                      _buildTodayConsumptionBanner(
+                        todayProductsUsedCount: todayProductsUsedCount,
+                        todayTotalUnitsUsed: todayTotalUnitsUsed,
+                        userTodayLoggedCount: userTodayLoggedCount,
+                        isStaff: !(currentUser?.isAdmin ?? false),
+                        isArchiveMode: isArchiveMode,
+                      ),
+
                       // KPI Summary Ribbon
                       _buildKpiRibbon(
                         totalStockIn: totalStockIn,
@@ -187,6 +213,8 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
                         isWideScreen: isWideScreen,
                         isArchiveMode: isArchiveMode,
                         archiveMonthYear: archiveMonthYear,
+                        todayProductsUsedCount: todayProductsUsedCount,
+                        todayTotalUnitsUsed: todayTotalUnitsUsed,
                       ),
                       const SizedBox(height: 14),
 
@@ -249,6 +277,15 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
                   const SizedBox(height: 12),
 
                   if (_activeTab == 0) ...[
+                    // Today's Consumption Banner
+                    _buildTodayConsumptionBanner(
+                      todayProductsUsedCount: todayProductsUsedCount,
+                      todayTotalUnitsUsed: todayTotalUnitsUsed,
+                      userTodayLoggedCount: userTodayLoggedCount,
+                      isStaff: !(currentUser?.isAdmin ?? false),
+                      isArchiveMode: isArchiveMode,
+                    ),
+
                     // KPI Summary Ribbon
                     _buildKpiRibbon(
                       totalStockIn: totalStockIn,
@@ -259,6 +296,8 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
                       isWideScreen: isWideScreen,
                       isArchiveMode: isArchiveMode,
                       archiveMonthYear: archiveMonthYear,
+                      todayProductsUsedCount: todayProductsUsedCount,
+                      todayTotalUnitsUsed: todayTotalUnitsUsed,
                     ),
                     const SizedBox(height: 14),
 
@@ -1510,6 +1549,107 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
     );
   }
 
+  Widget _buildTodayConsumptionBanner({
+    required int todayProductsUsedCount,
+    required double todayTotalUnitsUsed,
+    required int userTodayLoggedCount,
+    required bool isStaff,
+    required bool isArchiveMode,
+  }) {
+    if (isArchiveMode) return const SizedBox.shrink();
+
+    final todayStr = DateFormat('dd MMMM yyyy').format(DateTime.now());
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF334155)),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0284C7).withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+            ),
+            child: const Icon(Icons.fact_check_rounded, color: Color(0xFF38BDF8), size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text(
+                  '📅 Aaj Ki Date ($todayStr):',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                  decoration: BoxDecoration(
+                    color: todayProductsUsedCount > 0 ? const Color(0xFF047857) : const Color(0xFF475569),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    todayProductsUsedCount > 0
+                        ? 'Total $todayProductsUsedCount Products Use Ho Chuke Hain'
+                        : 'Aaj abhi koi product use nahi hua',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                if (todayTotalUnitsUsed > 0) ...[
+                  Text(
+                    '(Total: ${todayTotalUnitsUsed % 1 == 0 ? todayTotalUnitsUsed.toInt() : todayTotalUnitsUsed.toStringAsFixed(1)} units used)',
+                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                  ),
+                ],
+                if (isStaff) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF818CF8)),
+                    ),
+                    child: Text(
+                      'Aap ki entry: $userTodayLoggedCount products',
+                      style: const TextStyle(
+                        color: Color(0xFFA5B4FC),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildKpiRibbon({
     required double totalStockIn,
     required double totalUsed,
@@ -1519,10 +1659,23 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
     required bool isWideScreen,
     bool isArchiveMode = false,
     String? archiveMonthYear,
+    int todayProductsUsedCount = 0,
+    double todayTotalUnitsUsed = 0.0,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 650;
+
+        final card0 = _buildMetricCard(
+          title: "Today's Consumption",
+          value: isArchiveMode ? 'N/A' : '$todayProductsUsedCount items',
+          subtitle: isArchiveMode
+              ? 'Historical record'
+              : '${todayTotalUnitsUsed % 1 == 0 ? todayTotalUnitsUsed.toInt() : todayTotalUnitsUsed.toStringAsFixed(1)} units used today',
+          color: const Color(0xFF0284C7),
+          bgColor: const Color(0xFFE0F2FE),
+          icon: Icons.fact_check_rounded,
+        );
 
         final card1 = _buildMetricCard(
           title: 'Total Stock In',
@@ -1574,6 +1727,8 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
         if (isCompact) {
           return Column(
             children: [
+              card0,
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(child: card1),
@@ -1595,6 +1750,8 @@ class _OfficeExpenseScreenState extends ConsumerState<OfficeExpenseScreen> {
 
         return Row(
           children: [
+            Expanded(child: card0),
+            const SizedBox(width: 12),
             Expanded(child: card1),
             const SizedBox(width: 12),
             Expanded(child: card2),

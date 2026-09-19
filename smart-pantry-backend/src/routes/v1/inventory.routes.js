@@ -24,6 +24,7 @@ router
   .delete(mongoIdValidator, validate, inventoryController.deleteIngredient);
 
 router.post('/:id/usage', mongoIdValidator, validate, inventoryController.logUsage);
+router.post('/:id/usage/update-user-entry', mongoIdValidator, validate, inventoryController.updateUserShiftEntry);
 router.post('/:id/restock', mongoIdValidator, validate, inventoryController.restockIngredient);
 
 module.exports = router;

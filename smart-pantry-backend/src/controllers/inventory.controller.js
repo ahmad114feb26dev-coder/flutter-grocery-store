@@ -168,6 +168,67 @@ const logUsage = asyncHandler(async (req, res, next) => {
   });
 });
 
+const updateUserShiftEntry = asyncHandler(async (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    throw new AppError('Sirf Admin ko user ki entry edit/update karne ki ijazat hai.', 403);
+  }
+
+  const { dayOfMonth, targetUserId, entryIndex, newAmount, reason } = req.body;
+  if (!reason || !reason.trim()) {
+    throw new AppError('Entry update karne ke liye Reason (wajah) likhna lazmi hai.', 400);
+  }
+
+  const storeOwnerId = await getStoreOwnerId(req.user);
+  const ingredient = await inventoryService.updateUserShiftEntry(storeOwnerId, req.params.id, {
+    dayOfMonth,
+    targetUserId,
+    entryIndex,
+    newAmount,
+    reason: reason.trim(),
+    adminUser: {
+      id: req.user._id,
+      name: req.user.name || 'Admin',
+      email: req.user.email || '',
+    },
+  });
+
+  const obj = ingredient.toObject();
+  obj.daysLeft = calculateDaysLeft(obj.expiryDate);
+
+  const io = req.app.get('io');
+  if (io) {
+    const payload = {
+      ingredientId: ingredient._id,
+      ingredientName: ingredient.name,
+      dayOfMonth: dayOfMonth || new Date().getDate(),
+      amount: Number(newAmount) || 0,
+      unit: ingredient.unit || '',
+      reason: reason.trim(),
+      loggedBy: {
+        id: req.user._id,
+        name: req.user.name || 'Admin',
+        email: req.user.email || '',
+        role: 'admin',
+        shiftType: 'admin_edit',
+        shiftLabel: 'Admin Correction',
+      },
+      updatedIngredient: obj,
+      timestamp: new Date().toISOString(),
+    };
+
+    io.to(storeOwnerId.toString()).emit('inventory_usage_logged', payload);
+    io.emit('inventory_usage_logged', payload);
+    io.to(storeOwnerId.toString()).emit('inventory_item_updated', { ingredient: obj });
+    io.emit('inventory_item_updated', { ingredient: obj });
+    console.log(`[Socket.IO] Emitted updateUserShiftEntry for "${ingredient.name}" by Admin ${req.user.name}`);
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: { ingredient: obj },
+  });
+});
+
 const clearMonthDays = asyncHandler(async (req, res, next) => {
   if (!canUserEdit(req.user)) {
     throw new AppError('You have View-Only access. You cannot clear daily logs until Admin grants edit access.', 403);
@@ -280,6 +341,7 @@ module.exports = {
   deleteIngredient,
   restockIngredient,
   logUsage,
+  updateUserShiftEntry,
   clearMonthDays,
   closeMonth,
   getMonthlyArchives,

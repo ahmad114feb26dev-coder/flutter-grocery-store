@@ -1368,6 +1368,574 @@ class _MonthlyStockRegisterSheetState extends ConsumerState<MonthlyStockRegister
     );
   }
 
+  void _showDayEntriesBreakdownDialog(IngredientModel item, int day, {bool isReadOnly = false}) {
+    final dayKey = '$day';
+    final entries = item.getShiftEntriesForDay(dayKey);
+    final totalDayVal = item.dailyUsageLogs?[dayKey] ?? 0.0;
+    final isEdited = item.isDayEdited(dayKey);
+    final editReason = item.getDayEditReason(dayKey);
+    final editedBy = item.getDayEditedBy(dayKey);
+
+    final currentUser = ref.read(authControllerProvider).valueOrNull;
+    final isAdmin = currentUser?.isAdmin ?? false;
+    final canEdit = isAdmin && !isReadOnly && !widget.isArchive;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        contentPadding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: const Icon(
+                Icons.people_alt_rounded,
+                color: Color(0xFF2563EB),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Day $day Entries',
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFF59E0B)),
+                        ),
+                        child: Text(
+                          'Total: ${totalDayVal % 1 == 0 ? totalDayVal.toInt() : totalDayVal} ${item.unit}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF92400E)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    item.name,
+                    style: const TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isEdited) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFF59E0B)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.history_edu_rounded, color: Color(0xFFB45309), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Last Modified by $editedBy',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF92400E)),
+                              ),
+                              if (editReason != null && editReason.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Reason: $editReason',
+                                  style: const TextStyle(fontSize: 11, color: Color(0xFF78350F)),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                Text(
+                  entries.isNotEmpty
+                      ? 'Users who entered consumption on Day $day (${entries.length}):'
+                      : 'Day $day Consumption Record:',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                if (entries.isNotEmpty) ...[
+                  ...entries.asMap().entries.map((mapEntry) {
+                    final index = mapEntry.key;
+                    final entry = mapEntry.value;
+                    final userName = entry['userName']?.toString() ?? 'Staff User';
+                    final shiftLabel = entry['shiftLabel']?.toString() ?? entry['shiftType']?.toString() ?? 'Shift';
+                    final amt = (entry['amount'] as num?)?.toDouble() ?? 0.0;
+                    final enteredAtStr = entry['enteredAt']?.toString();
+                    String timeLabel = '';
+                    if (enteredAtStr != null) {
+                      final dt = DateTime.tryParse(enteredAtStr);
+                      if (dt != null) {
+                        timeLabel = DateFormat('hh:mm a').format(dt);
+                      }
+                    }
+                    final adminReason = entry['adminEditReason']?.toString();
+                    final editedByAdmin = entry['lastEditedByAdmin']?.toString();
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 2)),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: const Color(0xFFDBEAFE),
+                                child: Text(
+                                  userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                                  style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1D4ED8), fontSize: 13),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      userName,
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary),
+                                    ),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            shiftLabel,
+                                            style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                        if (timeLabel.isNotEmpty) ...[
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            timeLabel,
+                                            style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                                ),
+                                child: Text(
+                                  '${amt % 1 == 0 ? amt.toInt() : amt} ${item.unit}',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (adminReason != null && adminReason.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.info_outline_rounded, size: 13, color: Color(0xFFD97706)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Updated by ${editedByAdmin ?? "Admin"}: "$adminReason"',
+                                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (canEdit) ...[
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFFD97706),
+                                  side: const BorderSide(color: Color(0xFFF59E0B)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                icon: const Icon(Icons.edit_note_rounded, size: 16),
+                                label: const Text('Edit Entry', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  _showAdminEditUserEntryDialog(item, day, entry, index);
+                                },
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
+                ] else ...[
+                  // Single aggregate day entry without shift user breakdown
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Day Consumption Total:',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                            ),
+                            Text(
+                              '${totalDayVal % 1 == 0 ? totalDayVal.toInt() : totalDayVal} ${item.unit}',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF2563EB)),
+                            ),
+                          ],
+                        ),
+                        if (canEdit) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFD97706),
+                                side: const BorderSide(color: Color(0xFFF59E0B)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: const Icon(Icons.edit_note_rounded, size: 16),
+                              label: const Text('Edit Day Entry with Reason', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _showAdminEditUserEntryDialog(item, day, null, null, totalDayVal);
+                              },
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          if (canEdit)
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Add / Override Entry'),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showQuickLogUsageDialog(item, day);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showAdminEditUserEntryDialog(
+    IngredientModel item,
+    int day,
+    Map<String, dynamic>? targetEntry,
+    int? entryIndex, [
+    double? fallbackAmount,
+  ]) {
+    final targetUserName = targetEntry?['userName']?.toString() ?? 'User Entry';
+    final currentQty = (targetEntry?['amount'] as num?)?.toDouble() ?? fallbackAmount ?? 0.0;
+
+    final amountController = TextEditingController(
+      text: currentQty % 1 == 0 ? currentQty.toInt().toString() : currentQty.toString(),
+    );
+    final reasonController = TextEditingController();
+    String? reasonErrorText;
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            final isReasonEmpty = reasonController.text.trim().isEmpty;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.edit_note_rounded,
+                      color: Color(0xFFD97706),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Edit Entry - $targetUserName',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          '${item.name} (Day $day)',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 14),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFF59E0B)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: Color(0xFFB45309), size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Pehle se darj shuda quantity: ${currentQty % 1 == 0 ? currentQty.toInt() : currentQty} ${item.unit}. Is ko update karne ke liye Reason (wajah) likhna lazmi hai.',
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF92400E), height: 1.3, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextFormField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Correct / New Quantity (${item.unit}) *',
+                        prefixIcon: const Icon(Icons.production_quantity_limits_rounded, size: 18, color: Color(0xFFD97706)),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: reasonController,
+                      autofocus: true,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: 'Reason for Update (Mandatory / Wajah) *',
+                        labelStyle: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFB45309), fontSize: 13),
+                        hintText: 'e.g. User se galti se zyada likh gaya tha, actual 2 hai...',
+                        hintStyle: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                        errorText: reasonErrorText,
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.only(bottom: 24),
+                          child: Icon(Icons.rate_review_rounded, size: 18, color: Color(0xFFD97706)),
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFFFFFBEB),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFFDE68A)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFFD97706), width: 1.8),
+                        ),
+                      ),
+                      onChanged: (val) {
+                        if (reasonErrorText != null && val.trim().isNotEmpty) {
+                          setDialogState(() {
+                            reasonErrorText = null;
+                          });
+                        } else {
+                          setDialogState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '⚠️ Bager reason likhy entry update nahi hogi. Update karne par user ki side par bhi sahi value reflect ho jayegi.',
+                      style: TextStyle(fontSize: 11, color: Color(0xFFB45309), fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isReasonEmpty ? Colors.grey.shade400 : const Color(0xFFD97706),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final reasonText = reasonController.text.trim();
+                          if (reasonText.isEmpty) {
+                            setDialogState(() {
+                              reasonErrorText = 'Update ki wajah (Reason) likhna lazmi hai!';
+                            });
+                            return;
+                          }
+
+                          final newAmt = double.tryParse(amountController.text.trim());
+                          if (newAmt == null || newAmt < 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Sahi quantity number enter karein.')),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSaving = true;
+                          });
+
+                          try {
+                            if (item.id != null) {
+                              await ref.read(inventoryControllerProvider.notifier).updateUserShiftEntry(
+                                    id: item.id!,
+                                    dayOfMonth: day,
+                                    targetUserId: targetEntry?['userId']?.toString(),
+                                    entryIndex: entryIndex,
+                                    newAmount: newAmt,
+                                    reason: reasonText,
+                                  );
+                            }
+
+                            if (ctx.mounted) Navigator.pop(ctx);
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '✏️ Entry updated successfully! $targetUserName: $newAmt ${item.unit} (Reason: $reasonText)',
+                                  ),
+                                  backgroundColor: const Color(0xFFB45309),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() {
+                              isSaving = false;
+                            });
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error updating entry: $e'),
+                                  backgroundColor: Colors.red.shade700,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Update Entry'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showQuickRestockDialog(IngredientModel item) {
     final qtyController = TextEditingController();
 
@@ -2674,6 +3242,10 @@ class _MonthlyStockRegisterSheetState extends ConsumerState<MonthlyStockRegister
                   return;
                 }
                 if (isLockedForStaff) {
+                  if (hasUsage) {
+                    _showDayEntriesBreakdownDialog(item, day, isReadOnly: true);
+                    return;
+                  }
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Row(
@@ -2682,11 +3254,9 @@ class _MonthlyStockRegisterSheetState extends ConsumerState<MonthlyStockRegister
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              hasUsage
-                                  ? '🔒 Day $day ka data ($displayVal) aap already enter kar chuke hain. Is ko ab sirf Admin hi update kar sakta hai.'
-                                  : (isPastDay
-                                      ? '🔒 Pichli Tareekh Lock Hai: Aap sirf aaj ki tareekh (${now.day}) mein entry kar saktay hain. Pichla data sirf Admin edit kar sakta hai.'
-                                      : '🔒 Yeh Tareekh Abhi Aayi Nahi: Sirf aaj ki tareekh (${now.day}) mein entry ki ijazat hai.'),
+                              isPastDay
+                                  ? '🔒 Pichli Tareekh Lock Hai: Aap sirf aaj ki tareekh (${now.day}) mein entry kar saktay hain. Pichla data sirf Admin edit kar sakta hai.'
+                                  : '🔒 Yeh Tareekh Abhi Aayi Nahi: Sirf aaj ki tareekh (${now.day}) mein entry ki ijazat hai.',
                             ),
                           ),
                         ],
@@ -2717,6 +3287,10 @@ class _MonthlyStockRegisterSheetState extends ConsumerState<MonthlyStockRegister
                       duration: const Duration(seconds: 4),
                     ),
                   );
+                  return;
+                }
+                if (isAdmin && hasUsage) {
+                  _showDayEntriesBreakdownDialog(item, day);
                   return;
                 }
                 _showQuickLogUsageDialog(item, day);

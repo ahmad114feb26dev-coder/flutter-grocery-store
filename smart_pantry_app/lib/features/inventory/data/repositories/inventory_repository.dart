@@ -71,6 +71,31 @@ class InventoryRepository {
     }
   }
 
+  Future<IngredientModel> updateUserShiftEntry({
+    required String id,
+    required int dayOfMonth,
+    String? targetUserId,
+    int? entryIndex,
+    required double newAmount,
+    required String reason,
+  }) async {
+    try {
+      final response = await _dioClient.dio.post(
+        '${ApiConstants.inventory}/$id/usage/update-user-entry',
+        data: {
+          'dayOfMonth': dayOfMonth,
+          'newAmount': newAmount,
+          'reason': reason.trim(),
+          if (targetUserId != null) 'targetUserId': targetUserId,
+          if (entryIndex != null) 'entryIndex': entryIndex,
+        },
+      );
+      return IngredientModel.fromJson(response.data['data']['ingredient']);
+    } on DioException catch (e) {
+      throw _dioClient.handleDioError(e);
+    }
+  }
+
   Future<void> deleteIngredient(String id) async {
     try {
       await _dioClient.dio.delete('${ApiConstants.inventory}/$id');

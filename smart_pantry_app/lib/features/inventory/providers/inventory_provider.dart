@@ -78,6 +78,30 @@ class InventoryController extends _$InventoryController {
     );
   }
 
+  Future<void> updateUserShiftEntry({
+    required String id,
+    required int dayOfMonth,
+    String? targetUserId,
+    int? entryIndex,
+    required double newAmount,
+    required String reason,
+  }) async {
+    final repo = ref.read(inventoryRepositoryProvider);
+    final updatedItem = await repo.updateUserShiftEntry(
+      id: id,
+      dayOfMonth: dayOfMonth,
+      targetUserId: targetUserId,
+      entryIndex: entryIndex,
+      newAmount: newAmount,
+      reason: reason,
+    );
+
+    final currentList = state.valueOrNull ?? [];
+    state = AsyncValue.data(
+      currentList.map((e) => e.id == id ? updatedItem : e).toList(),
+    );
+  }
+
   Future<void> updateIngredient(String id, Map<String, dynamic> data) async {
     final repo = ref.read(inventoryRepositoryProvider);
     final updatedItem = await repo.updateIngredient(id, data);

@@ -181,6 +181,110 @@ const logUsage = async (userId, ingredientId, { dayOfMonth, amount, isOverwrite 
   return ingredient;
 };
 
+const updateUserShiftEntry = async (storeOwnerId, ingredientId, { dayOfMonth, targetUserId, entryIndex, newAmount, reason, adminUser }) => {
+  if (!reason || !reason.trim()) {
+    throw new AppError('User ki entry update karne ke liye Reason (wajah) likhna lazmi hai.', 400);
+  }
+
+  const ingredient = await Ingredient.findOne({ _id: ingredientId, userId: storeOwnerId });
+  if (!ingredient) {
+    throw new AppError('Item not found in inventory', 404);
+  }
+
+  const dayKey = String(dayOfMonth || new Date().getDate());
+  const logs = { ...(ingredient.dailyUsageLogs || {}) };
+  const prevDayVal = Number(logs[dayKey]) || 0;
+
+  const shiftLogs = { ...(ingredient.shiftUsageLogs || {}) };
+  let dayShiftEntries = Array.isArray(shiftLogs[dayKey]) ? [...shiftLogs[dayKey]] : [];
+
+  const targetAmt = Number(newAmount) || 0;
+  let targetEntry = null;
+  let targetIdx = -1;
+
+  if (entryIndex != null && entryIndex >= 0 && entryIndex < dayShiftEntries.length) {
+    targetIdx = entryIndex;
+    targetEntry = dayShiftEntries[entryIndex];
+  } else if (targetUserId) {
+    targetIdx = dayShiftEntries.findIndex((e) => e.userId && e.userId.toString() === targetUserId.toString());
+    if (targetIdx !== -1) {
+      targetEntry = dayShiftEntries[targetIdx];
+    }
+  }
+
+  let oldTargetAmount = 0;
+  if (targetIdx !== -1 && targetEntry) {
+    oldTargetAmount = Number(targetEntry.amount) || 0;
+    dayShiftEntries[targetIdx] = {
+      ...targetEntry,
+      amount: targetAmt,
+      originalAmount: targetEntry.originalAmount != null ? targetEntry.originalAmount : oldTargetAmount,
+      lastEditedByAdmin: adminUser.name || 'Admin',
+      lastEditedByAdminEmail: adminUser.email || '',
+      adminEditReason: reason.trim(),
+      editedAt: new Date().toISOString(),
+    };
+  } else {
+    // If no specific entry was found (e.g. legacy aggregate entry without shift breakdown)
+    oldTargetAmount = prevDayVal;
+    dayShiftEntries.push({
+      userId: targetUserId || (adminUser._id ? adminUser._id.toString() : 'admin'),
+      userName: (adminUser.name || 'Admin') + ' (Adjusted)',
+      userEmail: adminUser.email || '',
+      shiftType: 'admin_edit',
+      shiftLabel: 'Admin Correction',
+      amount: targetAmt,
+      originalAmount: prevDayVal,
+      lastEditedByAdmin: adminUser.name || 'Admin',
+      adminEditReason: reason.trim(),
+      enteredAt: new Date().toISOString(),
+      editedAt: new Date().toISOString(),
+    });
+  }
+
+  shiftLogs[dayKey] = dayShiftEntries;
+  ingredient.shiftUsageLogs = shiftLogs;
+  ingredient.markModified('shiftUsageLogs');
+
+  // Recalculate new total for this day
+  const newDayVal = dayShiftEntries.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const dayDiff = newDayVal - prevDayVal;
+
+  logs[dayKey] = newDayVal;
+  ingredient.dailyUsageLogs = logs;
+  ingredient.markModified('dailyUsageLogs');
+
+  // Recalculate totalUsed and remaining quantity
+  ingredient.totalUsed = (Number(ingredient.totalUsed) || 0) + dayDiff;
+  ingredient.quantity = (ingredient.stockIn != null ? ingredient.stockIn : ingredient.quantity) - ingredient.totalUsed;
+
+  // Record in audit log
+  const edits = { ...(ingredient.dailyUsageEdits || {}) };
+  edits[dayKey] = {
+    isEdited: true,
+    reason: reason.trim(),
+    previousAmount: prevDayVal,
+    newAmount: newDayVal,
+    targetUserName: targetEntry ? targetEntry.userName : 'User Entry',
+    targetUserId: targetUserId || null,
+    targetOldAmount: oldTargetAmount,
+    targetNewAmount: targetAmt,
+    editedByName: adminUser.name || 'Admin',
+    editedByEmail: adminUser.email || '',
+    editedAt: new Date(),
+  };
+  ingredient.dailyUsageEdits = edits;
+  ingredient.markModified('dailyUsageEdits');
+
+  // If low stock, ensure on shopping list
+  if (ingredient.quantity <= (ingredient.lowStockThreshold || 3)) {
+    await checkAndAddToShoppingList(storeOwnerId, ingredient.name);
+  }
+
+  await ingredient.save();
+  return ingredient;
+};
+
 const updateIngredient = async (userId, ingredientId, updateData) => {
   const ingredient = await Ingredient.findOne({ _id: ingredientId, userId });
   if (!ingredient) {
@@ -339,6 +443,7 @@ module.exports = {
   deleteIngredient,
   restockIngredient,
   logUsage,
+  updateUserShiftEntry,
   clearMonthDays,
   closeMonth,
   getMonthlyArchives,
